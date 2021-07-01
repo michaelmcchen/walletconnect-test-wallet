@@ -1,6 +1,9 @@
 import * as React from "react";
 import styled from "styled-components";
+import queryString from "query-string";
+
 import WalletConnect from "@walletconnect/client";
+
 import Button from "./components/Button";
 import Card from "./components/Card";
 import Input from "./components/Input";
@@ -125,6 +128,7 @@ export interface IAppState {
   requests: any[];
   results: any[];
   payload: any;
+  referrer: string;
 }
 
 export const DEFAULT_ACCOUNTS = getAppControllers().wallet.getAccounts();
@@ -150,6 +154,7 @@ export const INITIAL_STATE: IAppState = {
   requests: [],
   results: [],
   payload: null,
+  referrer: "",
 };
 
 class App extends React.Component<{}> {
@@ -197,6 +202,15 @@ class App extends React.Component<{}> {
       this.subscribeToEvents();
     }
     await getAppConfig().events.init(this.state, this.bindedSetState);
+
+    const qs = queryString.parse(window.location.search);
+    const walletConnectLink = qs.wc + "&key=" + qs.key;
+    console.log("walletConnectLink", walletConnectLink); // TODO: Remove
+    if (walletConnectLink != null && typeof walletConnectLink === "string") {
+      this.setState({ referrer: window.document.referrer });
+      console.log("Setting state...", this.state.referrer);
+      await this.connectUri(walletConnectLink);
+    }
   };
 
   public bindedSetState = (newState: Partial<IAppState>) => this.setState(newState);
@@ -303,6 +317,13 @@ class App extends React.Component<{}> {
         }
 
         this.setState({ connected: true });
+
+        // TODO: make sure referrer is a valid URL
+        // TODO: State isn't updating in time
+        // if (this.state.referrer !== "") {
+        //   // Redirect back to Dapp after auth
+        //   window.open(this.state.referrer, "_blank");
+        // }
       });
 
       connector.on("disconnect", (error, payload) => {
@@ -393,9 +414,13 @@ class App extends React.Component<{}> {
     const data = e.target.value;
     const uri = typeof data === "string" ? data : "";
     if (uri) {
-      await this.setState({ uri });
-      await this.initWalletConnect();
+      this.connectUri(uri);
     }
+  };
+
+  public connectUri = async (uri: string) => {
+    await this.setState({ uri });
+    await this.initWalletConnect();
   };
 
   public onQRCodeError = (error: Error) => {
